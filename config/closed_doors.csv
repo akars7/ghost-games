@@ -1,0 +1,16 @@
+# Closed-doors windows per league. Approximate, verify dates and cite sources.
+# empty = no fans, partial = limited crowd (excluded from the main model)
+league,start,end,status
+E0,2020-06-17,2020-11-30,empty
+E0,2020-12-01,2020-12-15,partial
+E0,2020-12-16,2021-05-17,empty
+E0,2021-05-18,2021-05-23,partial
+D1,2020-05-16,2020-09-17,empty
+D1,2020-09-18,2020-10-31,partial
+D1,2020-11-01,2021-05-22,empty
+SP1,2020-06-11,2021-05-23,empty
+I1,2020-06-20,2020-09-18,empty
+I1,2020-09-19,2020-10-24,partial
+I1,2020-10-25,2021-05-23,empty
+F1,2020-08-21,2020-10-27,partial
+F1,2020-10-28,2021-05-23,empty

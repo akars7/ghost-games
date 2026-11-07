@@ -1,0 +1,3 @@
+# Manual fixes for team names the automatic matching gets wrong.
+# fbref_name = name in the FBref files, results_name = name in football-data.
+league,fbref_name,results_name
