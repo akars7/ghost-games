@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from ghost_games.data import clean_matches, season_of
+from ghost_games.data import clean_matches, load_matches, season_of
 from ghost_games.inference import bootstrap_gap, permutation_test
 from ghost_games.model import fit_home_advantage, home_advantage_over_time
 from ghost_games.outcomes import add_outcomes
@@ -145,3 +145,17 @@ def test_permutation_no_gap_is_not_significant():
 def test_time_series_has_one_row_per_bucket():
     summary = home_advantage_over_time(simulate_matches(), freq="YS")
     assert {"mean", "ci_low", "ci_high", "share_empty"} <= set(summary.columns)
+
+
+def test_empty_download_gives_clear_error(tmp_path):
+    (tmp_path / "E0_1920.csv").write_text("")
+    with pytest.raises(ValueError, match="E0_1920.csv"):
+        load_matches(tmp_path)
+
+
+def test_season_comes_from_file_name(tmp_path):
+    # last round of Serie A 2019-20 was played in August 2020
+    (tmp_path / "I1_1920.csv").write_text(
+        "Div,Date,HomeTeam,AwayTeam,FTHG,FTAG\nI1,02/08/2020,Roma,Juventus,3,1\n"
+    )
+    assert load_matches(tmp_path)["season"].iloc[0] == "2019-20"

@@ -8,9 +8,11 @@ Run this on your own machine. It downloads 40 files: 5 leagues, 2015-16 to 2022-
 mkdir -p data/raw
 for season in 1516 1617 1718 1819 1920 2021 2122 2223; do
   for league in E0 D1 SP1 I1 F1; do
-    curl -sf "https://www.football-data.co.uk/mmz4281/$season/$league.csv" -o "data/raw/${league}_${season}.csv"
+    f="data/raw/${league}_${season}.csv"
+    curl -fsSL -A "Mozilla/5.0" "https://www.football-data.co.uk/mmz4281/$season/$league.csv" -o "$f" || { echo "FAILED $f"; rm -f "$f"; }
   done
 done
+find data/raw -maxdepth 1 -name "*.csv" -size +1k | wc -l   # should print 40
 ```
 League codes: `E0` Premier League, `D1` Bundesliga, `SP1` La Liga, `I1` Serie A, `F1` Ligue 1.
 

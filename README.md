@@ -1,6 +1,6 @@
 # Ghost Games: What Empty Stadiums Reveal About Home Advantage
 
-![CI](https://github.com/<your-username>/ghost-games/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/akars7/ghost-games/actions/workflows/ci.yml/badge.svg)
 
 ## Question
 **Do crowds cause home advantage in football? When COVID emptied Europe's stadiums for most of a season, how much of the home edge in goals, points and referee decisions disappeared?**
