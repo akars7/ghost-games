@@ -26,6 +26,8 @@ Team strength enters as +1 for the home team and −1 for the away team, the sam
 
 The treatment is either `closed_doors` (fans vs empty) or `crowd_share` (attendance divided by the club's normal crowd). The second version also uses the partial-crowd matches, so it answers a sharper question: **does a bigger crowd create a bigger home edge?**
 
+Every measure, equation and modelling choice is explained step by step in [docs/METHODS.md](docs/METHODS.md).
+
 ## Threats to validity
 - **Other changes at the same time:** five substitutes, a crowded fixture list and a short pre-season. Separating these from the crowd effect is the hardest part.
 - **Attendance quality.** FBref may leave attendance blank for some matches. Those fall back to the dates in `config/closed_doors.csv`, and the notebook reports how many matches that affects.
