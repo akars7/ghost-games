@@ -2,7 +2,7 @@
 
     outcome = home_adv + effect * treatment + strength[home] - strength[away]
 
-treatment is either closed_doors (0/1) or crowd_share (0 = empty, 1 = normal crowd).
+treatment is either closed_doors (0/1) or crowd_level (0 = empty, 1 = normal crowd).
 
 Strength is +1 for the home team and -1 for the away team (same idea as RAPM),
 so it can't take credit for the home edge.
@@ -37,7 +37,7 @@ class HomeAdvantageFit:
             # home_adv is the edge with fans; effect is how much empty stadiums change it
             with_fans = self.home_adv
             return -self.effect / with_fans if with_fans else float("nan")
-        # for crowd_share, home_adv is the edge with no crowd; a full crowd adds effect
+        # for crowd_level, home_adv is the edge with no crowd; a full crowd adds effect
         with_fans = self.home_adv + self.effect
         return self.effect / with_fans if with_fans else float("nan")
 
@@ -85,7 +85,7 @@ def fit_home_advantage(
     """Linear regression with robust standard errors (HC1).
 
     With closed_doors, partial-crowd games are left out by default (they are
-    neither full nor empty). With crowd_share they are kept, because the crowd
+    neither full nor empty). With crowd_level they are kept, because the crowd
     size is measured directly.
     """
     if exclude_partial is None:

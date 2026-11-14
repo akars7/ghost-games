@@ -47,14 +47,23 @@ def assign_crowd_status(matches: pd.DataFrame, windows: pd.DataFrame) -> pd.Data
     return out
 
 
+COVID_START = "2020-03-01"
+COVID_END = "2022-06-30"
+
+
 def assign_crowd_status_from_attendance(
-    matches: pd.DataFrame, windows: pd.DataFrame, partial_below: float = 0.6
+    matches: pd.DataFrame,
+    windows: pd.DataFrame,
+    partial_below: float = 0.6,
+    covid_start: str = COVID_START,
+    covid_end: str = COVID_END,
 ) -> pd.DataFrame:
     """Status from attendance first, from the config dates only when attendance is missing.
 
     Needs the attendance and crowd_share columns (see attendance.py).
     0 fans = empty, crowd_share below partial_below = partial, otherwise fans.
     No attendance and no window = unknown (left out of the analysis).
+    Partial is only possible between covid_start and covid_end.
     Adds status_from_dates and crowd_source so the two methods can be compared.
     """
     out = assign_crowd_status(matches, windows)
@@ -62,8 +71,10 @@ def assign_crowd_status_from_attendance(
 
     # 0 fans is always usable; a positive number needs a normal crowd to compare with
     usable = (out["attendance"] == 0) | out["crowd_share"].notna()
+    # small crowds outside COVID are low demand, not restrictions, so they stay "fans"
+    covid = out["date"].between(covid_start, covid_end)
     from_attendance = np.select(
-        [out["attendance"] == 0, out["crowd_share"] < partial_below],
+        [out["attendance"] == 0, covid & (out["crowd_share"] < partial_below)],
         ["empty", "partial"],
         default="fans",
     )
@@ -75,6 +86,11 @@ def assign_crowd_status_from_attendance(
     out.loc[no_window, "crowd_status"] = "unknown"
     out.loc[no_window, "crowd_source"] = "none"
     out["closed_doors"] = (out["crowd_status"] == "empty").astype(int)
+
+    # crowd_level: only crowd changes forced by COVID rules. Outside COVID, crowd size
+    # follows demand (good teams draw big crowds and also win), so it is set to 1.
+    out["crowd_level"] = np.where(covid, out["crowd_share"].clip(upper=1), 1.0)
+    out.loc[out["crowd_status"] == "empty", "crowd_level"] = 0.0
     return out
 
 

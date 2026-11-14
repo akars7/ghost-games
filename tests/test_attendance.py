@@ -102,9 +102,28 @@ def test_status_uses_attendance_and_falls_back_to_dates():
     out = assign_crowd_status_from_attendance(add_crowd_share(matches), windows)
     assert list(out["crowd_status"]) == ["fans", "fans", "empty", "partial", "empty", "unknown"]
     assert list(out["crowd_source"]) == ["attendance"] * 4 + ["dates", "none"]
+    # empty matches must count as crowd level 0, not be dropped as missing
+    assert out.loc[out["crowd_status"] == "empty", "crowd_level"].eq(0).all()
+    assert out["crowd_level"].iloc[0] == 1.0
     # the dates said "empty" for the 12,000 crowd: the check table shows that disagreement
     table = compare_with_dates(out)
     assert table.loc["empty", "partial"] == 1
+
+
+def test_small_crowd_before_covid_is_not_partial():
+    matches = pd.DataFrame(
+        {
+            "league": ["E0"] * 3,
+            "date": pd.to_datetime(["2018-09-01", "2018-10-01", "2018-11-01"]),
+            "home_team": ["A"] * 3,
+            "away_team": ["B"] * 3,
+            "attendance": [40000, 40000, 15000],
+        }
+    )
+    windows = pd.DataFrame(columns=["league", "start", "end", "status"])
+    out = assign_crowd_status_from_attendance(add_crowd_share(matches), windows)
+    assert list(out["crowd_status"]) == ["fans"] * 3
+    assert list(out["crowd_level"]) == [1.0] * 3
 
 
 def test_crowd_share_model_recovers_dose_effect():
@@ -122,11 +141,11 @@ def test_crowd_share_model_recovers_dose_effect():
                 "season": "2020-21",
                 "home_team": home,
                 "away_team": away,
-                "crowd_share": share,
+                "crowd_level": share,
                 "goal_diff": goal_diff,
             }
         )
-    fit = fit_home_advantage(pd.DataFrame(rows), treatment="crowd_share")
+    fit = fit_home_advantage(pd.DataFrame(rows), treatment="crowd_level")
     assert fit.effect == pytest.approx(0.3, abs=0.1)
     assert fit.home_adv == pytest.approx(0.1, abs=0.08)
 

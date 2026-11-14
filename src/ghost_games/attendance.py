@@ -174,6 +174,8 @@ def apply_overrides(mapping: pd.DataFrame, path: str | Path = TEAM_NAMES_PATH) -
     if not path.exists():
         return mapping
     overrides = pd.read_csv(path, comment="#")
+    if overrides.empty:
+        return mapping
     keys = ["league", "fbref_name"]
     kept = mapping.merge(overrides[keys], on=keys, how="left", indicator=True)
     kept = kept[kept["_merge"] == "left_only"].drop(columns="_merge")
