@@ -49,24 +49,42 @@ def fetch_fbref(
     seasons: list[str] | None = None,
     out_dir: Path = ATTENDANCE_DIR,
 ) -> None:
-    """Save one CSV per league-season. Files that already exist are skipped."""
+    """Save one CSV per league-season. Files that already exist are skipped.
+
+    One browser session per league (not per season): starting a browser is the slow part.
+    """
     import soccerdata as sd  # optional dependency, only needed here
 
     out_dir.mkdir(parents=True, exist_ok=True)
     for league in leagues or list(FBREF_LEAGUES):
-        for season in seasons or SEASONS:
-            path = out_dir / f"{league}_{season}.csv"
-            if path.exists():
-                continue
-            # soccerdata opens a Chrome window to get past FBref's bot check
-            reader = sd.FBref(leagues=FBREF_LEAGUES[league], seasons=season)
+        missing = [s for s in seasons or SEASONS if not (out_dir / f"{league}_{s}.csv").exists()]
+        if not missing:
+            continue
+        print(f"{league}: downloading {', '.join(missing)}")
+        reader = sd.FBref(leagues=FBREF_LEAGUES[league], seasons=missing)
+        try:
             schedule = reader.read_schedule().reset_index()
-            columns = ["date", "home_team", "away_team", "attendance"]
-            missing = set(columns) - set(schedule.columns)
-            if missing:
-                raise ValueError(f"FBref table for {league} {season} has no {sorted(missing)}")
-            schedule[columns].to_csv(path, index=False)
-            print(f"saved {path} ({len(schedule)} matches)")
+        finally:
+            # close the Chrome window, otherwise one stays open per league
+            driver = getattr(reader, "_driver", None)
+            if driver is not None:
+                driver.quit()
+        save_by_season(schedule, league, out_dir)
+
+
+def save_by_season(schedule: pd.DataFrame, league: str, out_dir: Path) -> list[Path]:
+    """Split one league's schedule into E0_1920.csv style files, one per season."""
+    columns = ["date", "home_team", "away_team", "attendance"]
+    missing = set(columns + ["season"]) - set(schedule.columns)
+    if missing:
+        raise ValueError(f"FBref table for {league} has no {sorted(missing)}")
+    saved = []
+    for season, rows in schedule.groupby("season"):
+        path = out_dir / f"{league}_{season}.csv"
+        rows[columns].to_csv(path, index=False)
+        print(f"saved {path} ({len(rows)} matches)")
+        saved.append(path)
+    return saved
 
 
 def load_attendance(raw_dir: str | Path = ATTENDANCE_DIR) -> pd.DataFrame:

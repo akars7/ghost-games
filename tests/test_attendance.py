@@ -8,6 +8,7 @@ from ghost_games.attendance import (
     load_attendance,
     match_team_names,
     merge_attendance,
+    save_by_season,
 )
 from ghost_games.model import fit_home_advantage
 from ghost_games.treatment import assign_crowd_status_from_attendance, compare_with_dates
@@ -81,13 +82,13 @@ def test_merge_fills_attendance_and_reports_coverage():
 def test_status_uses_attendance_and_falls_back_to_dates():
     matches = pd.DataFrame(
         {
-            "league": ["E0"] * 5,
+            "league": ["E0"] * 6,
             "date": pd.to_datetime(
-                ["2019-09-01", "2019-10-01", "2020-07-01", "2020-10-01", "2020-11-01"]
+                ["2019-09-01", "2019-10-01", "2020-07-01", "2020-10-01", "2020-11-01", "2021-12-01"]
             ),
-            "home_team": ["A"] * 5,
-            "away_team": ["B"] * 5,
-            "attendance": [40000, 42000, 0, 12000, np.nan],
+            "home_team": ["A"] * 6,
+            "away_team": ["B"] * 6,
+            "attendance": [40000, 42000, 0, 12000, np.nan, np.nan],
         }
     )
     windows = pd.DataFrame(
@@ -99,8 +100,8 @@ def test_status_uses_attendance_and_falls_back_to_dates():
         }
     )
     out = assign_crowd_status_from_attendance(add_crowd_share(matches), windows)
-    assert list(out["crowd_status"]) == ["fans", "fans", "empty", "partial", "empty"]
-    assert list(out["crowd_source"]) == ["attendance"] * 4 + ["dates"]
+    assert list(out["crowd_status"]) == ["fans", "fans", "empty", "partial", "empty", "unknown"]
+    assert list(out["crowd_source"]) == ["attendance"] * 4 + ["dates", "none"]
     # the dates said "empty" for the 12,000 crowd: the check table shows that disagreement
     table = compare_with_dates(out)
     assert table.loc["empty", "partial"] == 1
@@ -128,3 +129,18 @@ def test_crowd_share_model_recovers_dose_effect():
     fit = fit_home_advantage(pd.DataFrame(rows), treatment="crowd_share")
     assert fit.effect == pytest.approx(0.3, abs=0.1)
     assert fit.home_adv == pytest.approx(0.1, abs=0.08)
+
+
+def test_save_by_season_writes_one_file_per_season(tmp_path):
+    schedule = pd.DataFrame(
+        {
+            "season": ["1920", "1920", "2021"],
+            "date": ["2019-08-09", "2019-08-10", "2020-09-12"],
+            "home_team": ["Liverpool", "Arsenal", "Fulham"],
+            "away_team": ["Norwich City", "Burnley", "Arsenal"],
+            "attendance": [53333, 60000, None],
+        }
+    )
+    saved = save_by_season(schedule, "E0", tmp_path)
+    assert [p.name for p in saved] == ["E0_1920.csv", "E0_2021.csv"]
+    assert len(pd.read_csv(tmp_path / "E0_1920.csv")) == 2

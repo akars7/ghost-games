@@ -25,3 +25,4 @@ downloaded_files/
 
 # small config CSVs are part of the project (the *.csv rule above is for data)
 !config/*.csv
+fetch_log.txt
