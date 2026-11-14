@@ -1,9 +1,8 @@
 # Methods
 
 How Ghost Games measures home advantage, and why each choice was made.
-Every number marked *preliminary* comes from the first run on the real data
-(5 leagues, 2015-16 to 2022-23, fans vs empty from the config dates). It will
-be updated once real attendance is added.
+All numbers come from the final run: 14,507 matches from 5 leagues,
+2015-16 to 2022-23, with fans vs empty taken from real attendance.
 
 ---
 
@@ -135,20 +134,24 @@ the first row. That's why we pool the leagues.
 ```
 share lost = (edge with fans − edge when empty) / edge with fans
 ```
-*Preliminary results:*
+Raw averages (11,823 fan matches, 2,022 empty):
 
 | Outcome | Fans | Empty | Share lost |
 |---|---|---|---|
-| Goal difference | +0.348 | +0.139 | 60% |
-| Goal difference, capped | +0.307 | +0.115 | 62% |
-| Points difference | +0.460 | +0.145 | 68% |
-| Home points edge (2.4) | +0.230 | +0.073 | 68% |
+| Goal difference | +0.345 | +0.135 | 61% |
+| Goal difference, capped | +0.305 | +0.112 | 63% |
+| Points difference | +0.459 | +0.142 | 69% |
+| Home points edge (2.4) | +0.230 | +0.071 | 69% |
 
 | Rate | Fans | Empty |
 |---|---|---|
-| Home win | 45.2% | 39.7% |
+| Home win | 45.2% | 39.6% |
 | Away win | 29.9% | 34.9% |
-| Draw | 24.9% | 25.4% |
+| Draw | 24.9% | 25.5% |
+
+The model in section 6 controls for team strength and gives almost the same
+shares (60%, 63%, 68%), so the raw gap was not caused by which teams happened
+to play at home.
 
 The draw rate barely moves: crowds seem to turn some home wins into away
 wins, not into draws.
@@ -158,6 +161,10 @@ Several reasonable measures are reported side by side instead of one combined
 score. A weighted mix (say 0.8 × results + 0.2 × goals) would need arbitrary
 weights, and could be tuned, even by accident, to give the most exciting
 answer. When separate measures agree (60–68% above), the conclusion is robust.
+
+A second check uses a different treatment, `crowd_level` (4.1), instead of
+fans vs empty. It gives 54% for goals, 65% for points and 92% for cards: same
+direction, similar size.
 
 ---
 
@@ -171,16 +178,34 @@ crowd_share  = attendance / normal crowd        (capped at 1.5)
 ```
 1.0 = normal crowd, 0.3 = a 30% capacity limit, 0 = empty.
 
+For the model, the crowd is turned into `crowd_level`:
+```
+outside COVID (before 1 March 2020 or after 30 June 2022):  crowd_level = 1
+during COVID:                                               crowd_level = crowd_share, capped at 1
+empty matches:                                              crowd_level = 0
+```
+Why not use `crowd_share` directly: outside COVID, a low crowd usually means
+a small or unpopular match, not a capacity limit. That's a different thing,
+so those matches count as a full crowd.
+
 ### 4.2 Labels
 | Rule | Label |
 |---|---|
 | attendance = 0 | empty |
-| crowd_share < 0.6 | partial |
+| crowd_share < 0.6, during COVID only | partial |
 | otherwise | fans |
 | attendance missing | use the dates in `config/closed_doors.csv` |
+| attendance missing and no date window | unknown (left out) |
 
 FBref leaves closed-doors matches **blank**, not 0, so the config dates are
 still needed. The notebook compares the two sources to find wrong dates.
+
+Final counts: 11,823 fans, 2,022 empty, 627 partial, 35 unknown. Attendance
+labelled 12,341 matches, the config dates 2,131.
+
+An earlier version gave missing matches the label "fans" by default. That
+quietly put some empty matches in the fans group and shrank the effect.
+"Unknown" is safer: a match we can't label is left out, not guessed.
 
 ### 4.3 Season
 The season comes from the **file name** (`I1_1920.csv` → 2019-20), not the
@@ -218,7 +243,9 @@ The +1 keeps p above 0, since only a limited number of shuffles were run.
 outcome = home_adv + effect × treatment
           + strength[home team, season] − strength[away team, season] + noise
 ```
-- `treatment` is `closed_doors` (0 = fans, 1 = empty) or `crowd_share`.
+- `treatment` is `closed_doors` (0 = fans, 1 = empty) or `crowd_level` (4.1).
+- Unknown matches are always left out. Partial matches are left out of the
+  `closed_doors` model, but kept in the `crowd_level` model.
 - `home_adv` (the intercept) = the home edge when treatment = 0.
 - `effect` = how much the treatment changes the home edge.
 
@@ -241,16 +268,123 @@ the noise is bigger for some matches than others.
 ### Share of the edge lost
 ```
 closed_doors:  share lost = −effect / home_adv
-crowd_share:   share from crowd = effect / (home_adv + effect)
+crowd_level:   share from crowd = effect / (home_adv + effect)
 ```
+With `crowd_level`, the intercept is the edge with **no** crowd, so the full
+edge is `home_adv + effect`.
+
+### Confidence interval for the share (delta method)
+The share is a ratio of two estimates, and both have uncertainty. The delta
+method turns their variances into a variance for the ratio, using the slope
+(gradient) of the ratio with respect to each estimate:
+```
+h = home_adv, e = effect
+
+closed_doors:  gradient = [ e / h²,  −1 / h ]
+crowd_level:   gradient = [ −e / (h + e)²,  h / (h + e)² ]
+
+variance(share) = gradient · Cov(h, e) · gradientᵀ
+95% CI          = share ± 1.96 × √variance
+```
+`Cov(h, e)` is the 2×2 covariance of the two estimates from the regression.
+The covariance term matters: h and e are estimated from the same matches, so
+their errors are linked.
+
+Final results (closed_doors):
+
+| Outcome | Share lost | 95% CI |
+|---|---|---|
+| Goal difference | 60% | 40–81% |
+| Goal difference, capped | 63% | – |
+| Points difference | 68% | 45–90% |
+| Yellow card gap | 105% | 78–132% |
+
+More than 100% for cards means the edge did not just vanish but slightly
+flipped. The CI includes 100%, so "disappeared completely" is the safe reading.
 
 ---
 
-## 7. Next methods
+## 7. Booking rate
+
+The card gap (2.7) can drop for two reasons: referees became fairer, or
+home players fouled less. The booking rate separates the two:
+```
+booking rate     = yellow cards / fouls
+booking rate gap = away booking rate − home booking rate
+```
+Fouls barely changed (home fouls rose from 12.43 to 12.75 per match), while
+the gap fell:
+
+| | Fans | Empty |
+|---|---|---|
+| Booking rate gap | +0.0166 | +0.0020 |
+
+Change −0.0146, bootstrap CI −0.020 to −0.0085. In words: per 100 fouls, away
+teams got 1.7 more yellow cards than home teams with fans, and 0.2 more
+without them.
+
+**Limit:** the data has no foul severity. If away players commit harder fouls
+when a crowd is watching, that would also raise their booking rate.
+
+---
+
+## 8. Per-referee changes (empirical-Bayes shrinkage)
+
+Premier League only: the other leagues' files have no referee column.
+Referees need at least 30 fan matches and 10 empty matches (18 qualify).
+
+For each referee:
+```
+change = mean card gap (empty) − mean card gap (fans)
+se²    = var(fans) / n_fans + var(empty) / n_empty
+```
+A referee with 10 empty matches gets a noisy `change`. Some will look extreme
+by luck alone. Shrinkage pulls each one toward the overall change, more
+strongly when it is noisy:
+```
+overall     = average change, weighted by 1 / se²   (precise referees count more)
+true_spread = max( var(change across referees) − mean(se²), 0 )
+weight      = true_spread / (true_spread + se²)
+shrunk      = overall change + weight × (change − overall change)
+```
+The first line is the method of moments: the spread we see = the real spread
++ noise, so the real spread = what we see − the average noise.
+
+Result: `true_spread` = 0. All the variation between referees is what noise
+alone would give, so every referee shrinks to the overall change (−0.218).
+No referee stands out.
+
+---
+
+## 9. Market check
+
+Betting odds give the market's prediction for each match. 1 / odds is a
+probability, but the three outcomes add up to about 1.05. The extra 0.05 is
+the bookmaker's margin, removed by dividing by the sum:
+```
+p_home = (1 / odds_home) / (1 / odds_home + 1 / odds_draw + 1 / odds_away)
+surprise = home_win − p_home          (home_win is 1 or 0)
+```
+Average surprise near 0 = the market was right on average. Below 0 = it
+overrated home teams. Each period gets a bootstrap CI (5.1) for the mean
+surprise.
+
+| Period | Matches | Predicted | Actual | Gap | 95% CI |
+|---|---|---|---|---|---|
+| Fans | 11,822 | 44.5% | 45.2% | +0.7 | −0.1 to +1.5 |
+| Empty, first 60 days | 497 | 42.2% | 39.8% | −2.3 | −6.2 to +1.5 |
+| Empty, later | 1,525 | 41.9% | 39.5% | −2.4 | −4.6 to 0.0 |
+
+Empty minus fans: −3.1 points, CI −5.2 to −0.9. The 60-day cutoff is a
+choice, counted from each league's first empty match.
+
+---
+
+## 10. Next methods
 
 - **Ordered logistic regression** for win / draw / loss. The outcome is
   ordinal (loss < draw < win), but the gaps between categories aren't fixed
   numbers. This model keeps the order without assuming a spacing, and gives
   probabilities ("away wins went from 30% to 35%").
-- **Dose-response:** use `crowd_share` to test whether a bigger crowd gives a
-  bigger edge, including the partial-crowd matches.
+- **Closing odds** for the market check: they include late news, so they are
+  a harder test than the odds used here.
