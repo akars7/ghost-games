@@ -22,6 +22,9 @@ COLUMN_MAP = {
     "HF": "home_fouls",
     "AF": "away_fouls",
     "Referee": "referee",  # Premier League files only
+    "B365H": "odds_home",  # Bet365 pre-match odds
+    "B365D": "odds_draw",
+    "B365A": "odds_away",
 }
 REQUIRED = ["league", "date", "home_team", "away_team", "home_goals", "away_goals"]
 
