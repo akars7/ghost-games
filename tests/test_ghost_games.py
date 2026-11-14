@@ -6,6 +6,7 @@ from ghost_games.data import clean_matches, load_matches, season_of
 from ghost_games.inference import bootstrap_gap, permutation_test
 from ghost_games.model import fit_home_advantage, home_advantage_over_time
 from ghost_games.outcomes import add_outcomes
+from ghost_games.referees import booking_rate_gap, referee_table
 from ghost_games.treatment import assign_crowd_status
 
 TRUE_HOME_ADV = 0.35
@@ -48,6 +49,9 @@ def test_model_recovers_true_effects():
     assert fit.home_adv == pytest.approx(TRUE_HOME_ADV, abs=0.08)
     assert fit.effect == pytest.approx(TRUE_EMPTY_EFFECT, abs=0.1)
     assert fit.ci[0] < TRUE_EMPTY_EFFECT < fit.ci[1]
+    low, high = fit.share_ci
+    assert low < fit.share_of_advantage_lost < high
+    assert low < -TRUE_EMPTY_EFFECT / TRUE_HOME_ADV < high
     assert fit.share_of_advantage_lost == pytest.approx(0.71, abs=0.3)
 
 
@@ -174,3 +178,37 @@ def test_robustness_outcomes():
     assert out["home_points_edge"].mean() == pytest.approx(
         (out["home_points"] - no_edge_level).mean()
     )
+
+
+def test_booking_rate_gap():
+    matches = pd.DataFrame(
+        {
+            "home_yellows": [1, 1],
+            "away_yellows": [2, 2],
+            "home_fouls": [10, 10],
+            "away_fouls": [10, 10],
+        }
+    )
+    assert booking_rate_gap(matches) == pytest.approx(0.1)  # 0.2 - 0.1 cards per foul
+
+
+def test_referee_shrinkage_pulls_noisy_referees_to_the_middle():
+    rng = np.random.default_rng(5)
+    rows = []
+    for ref in range(12):
+        # every referee has the same true change (-0.3), so any spread is noise
+        for empty, n in [(0, 60), (1, 15)]:
+            for value in rng.normal(0.3 - 0.3 * empty, 1.5, n):
+                rows.append(
+                    {
+                        "referee": f"ref{ref}",
+                        "closed_doors": empty,
+                        "card_gap": value,
+                        "crowd_status": "empty" if empty else "fans",
+                    }
+                )
+    table = referee_table(pd.DataFrame(rows), min_fans=30, min_empty=10)
+    assert len(table) == 12
+    # shrunk values are much closer together than the raw ones
+    assert table["shrunk_change"].std() < table["change"].std() / 2
+    assert table["shrunk_change"].mean() == pytest.approx(-0.3, abs=0.3)

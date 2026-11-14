@@ -21,6 +21,7 @@ COLUMN_MAP = {
     "AR": "away_reds",
     "HF": "home_fouls",
     "AF": "away_fouls",
+    "Referee": "referee",  # Premier League files only
 }
 REQUIRED = ["league", "date", "home_team", "away_team", "home_goals", "away_goals"]
 
@@ -50,7 +51,8 @@ def clean_matches(raw: pd.DataFrame) -> pd.DataFrame:
 
     # older files use dd/mm/yy, newer ones dd/mm/yyyy
     df["date"] = pd.to_datetime(df["date"], dayfirst=True, format="mixed")
-    for col in df.columns.difference(["league", "date", "home_team", "away_team", "season"]):
+    text_cols = ["league", "date", "home_team", "away_team", "season", "referee"]
+    for col in df.columns.difference(text_cols):
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # season from the file name when we have it: the dates are wrong for 2019-20,
