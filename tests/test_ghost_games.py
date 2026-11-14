@@ -159,3 +159,18 @@ def test_season_comes_from_file_name(tmp_path):
         "Div,Date,HomeTeam,AwayTeam,FTHG,FTAG\nI1,02/08/2020,Roma,Juventus,3,1\n"
     )
     assert load_matches(tmp_path)["season"].iloc[0] == "2019-20"
+
+
+def test_robustness_outcomes():
+    matches = pd.DataFrame({"home_goals": [6, 1, 0], "away_goals": [0, 1, 1]})
+    out = add_outcomes(matches)
+    assert list(out["goal_diff_capped"]) == [3, 0, -1]  # 6-0 counts as +3
+    assert list(out["home_win"]) == [1, 0, 0]
+    assert list(out["draw"]) == [0, 1, 0]
+    assert list(out["away_win"]) == [0, 0, 1]
+    assert list(out["home_points_edge"]) == [1.5, 0, -1.5]
+    # the average edge equals home points above the no-edge level 1.5 - 0.5 * draw rate
+    no_edge_level = 1.5 - 0.5 * out["draw"].mean()
+    assert out["home_points_edge"].mean() == pytest.approx(
+        (out["home_points"] - no_edge_level).mean()
+    )
