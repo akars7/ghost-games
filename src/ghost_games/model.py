@@ -29,6 +29,8 @@ class HomeAdvantageFit:
     ci: tuple[float, float]
     p_value: float
     n_matches: int
+    # variance of home_adv, variance of effect, covariance of the two (for share_ci)
+    cov: tuple[float, float, float] = (float("nan"), float("nan"), float("nan"))
 
     @property
     def share_of_advantage_lost(self) -> float:
@@ -40,6 +42,25 @@ class HomeAdvantageFit:
         # for crowd_level, home_adv is the edge with no crowd; a full crowd adds effect
         with_fans = self.home_adv + self.effect
         return self.effect / with_fans if with_fans else float("nan")
+
+    @property
+    def share_ci(self) -> tuple[float, float]:
+        """95% CI for share_of_advantage_lost, with the delta method.
+
+        The share is a ratio of two estimates, so its uncertainty comes from both.
+        The delta method uses the slope of the ratio with respect to each estimate
+        (the gradient) and their covariance: var = g' * Cov * g.
+        """
+        h, e = self.home_adv, self.effect
+        if self.treatment == "closed_doors":  # share = -e / h
+            grad = np.array([e / h**2, -1 / h])
+        else:  # share = e / (h + e)
+            grad = np.array([-e / (h + e) ** 2, h / (h + e) ** 2])
+        var_h, var_e, cov_he = self.cov
+        cov_matrix = np.array([[var_h, cov_he], [cov_he, var_e]])
+        se = float(np.sqrt(grad @ cov_matrix @ grad))
+        share = self.share_of_advantage_lost
+        return share - 1.96 * se, share + 1.96 * se
 
 
 def build_design(matches: pd.DataFrame, treatment: str = "closed_doors") -> pd.DataFrame:
@@ -110,6 +131,11 @@ def fit_home_advantage(
         ci=(float(ci_low), float(ci_high)),
         p_value=float(result.pvalues[treatment]),
         n_matches=int(len(data)),
+        cov=(
+            float(result.cov_params().loc["const", "const"]),
+            float(result.cov_params().loc[treatment, treatment]),
+            float(result.cov_params().loc["const", treatment]),
+        ),
     )
 
 
