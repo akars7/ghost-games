@@ -91,6 +91,8 @@ def fit_home_advantage(
     if exclude_partial is None:
         exclude_partial = treatment == "closed_doors"
     data = matches
+    if "crowd_status" in data:
+        data = data[data["crowd_status"] != "unknown"]
     if exclude_partial and "crowd_status" in data:
         data = data[data["crowd_status"] != "partial"]
     data = data.dropna(subset=[outcome, treatment])

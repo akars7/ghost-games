@@ -54,6 +54,7 @@ def assign_crowd_status_from_attendance(
 
     Needs the attendance and crowd_share columns (see attendance.py).
     0 fans = empty, crowd_share below partial_below = partial, otherwise fans.
+    No attendance and no window = unknown (left out of the analysis).
     Adds status_from_dates and crowd_source so the two methods can be compared.
     """
     out = assign_crowd_status(matches, windows)
@@ -68,6 +69,11 @@ def assign_crowd_status_from_attendance(
     )
     out.loc[usable, "crowd_status"] = from_attendance[usable.to_numpy()]
     out["crowd_source"] = np.where(usable, "attendance", "dates")
+
+    # no attendance and no window: the dates can't tell us anything, so don't guess "fans"
+    no_window = ~usable & (out["status_from_dates"] == "fans")
+    out.loc[no_window, "crowd_status"] = "unknown"
+    out.loc[no_window, "crowd_source"] = "none"
     out["closed_doors"] = (out["crowd_status"] == "empty").astype(int)
     return out
 
